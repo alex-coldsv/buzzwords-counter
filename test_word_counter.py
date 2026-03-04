@@ -113,6 +113,20 @@ class TestPhoneticMatcherAbbreviation(unittest.TestCase):
         self.assertIn("ml", m.variants)
         self.assertIn("em el", m.variants)
 
+    def test_sas_excludes_standalone_letter_sounds(self):
+        m = PhoneticMatcher("SAS")
+        self.assertNotIn("es", m.variants)
+        self.assertNotIn("ess", m.variants)
+        self.assertNotIn("ay", m.variants)
+
+    def test_sas_still_matches_exact_word(self):
+        m = PhoneticMatcher("SAS")
+        self.assertEqual(m.count_matches("sas is widely used"), 1)
+
+    def test_sas_reduces_false_positive_on_common_words(self):
+        m = PhoneticMatcher("SAS")
+        self.assertEqual(m.count_matches("this is as simple as it gets"), 0)
+
 
 class TestPluralAndPossessive(unittest.TestCase):
     """Test that plural and possessive forms are matched."""

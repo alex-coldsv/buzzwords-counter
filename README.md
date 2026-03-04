@@ -116,7 +116,7 @@ To improve first-run accuracy, the app ignores the first **3.0 seconds** of micr
 ### Phonetic Matching
 When you click "Start Listening", the app builds a `PhoneticMatcher` for your target word:
 
-- **Abbreviations** (e.g. "AI", "GPU", "ML"): auto-generates all letter-by-letter phonetic variants using a built-in pronunciation table. For "AI" this produces variants including "ay eye", "a i", "ay", "eh eye", etc. Phonetic neighbours are intentionally skipped for abbreviations to avoid false positives.
+- **Abbreviations** (e.g. "AI", "GPU", "ML", "SAS"): auto-generates letter-by-letter phonetic variants using a built-in pronunciation table. For short abbreviations (like "AI"), standalone sounds (e.g. "ay") are included for recall. For longer abbreviations (3+ letters), standalone letter sounds are excluded to reduce false positives. Phonetic neighbours are intentionally skipped for abbreviations.
 - **Regular words**: uses Metaphone and Soundex phonetic algorithms to find similar-sounding words.
 - **Plurals & possessives**: all variants also match their plural (`AIs`, `ais`) and possessive (`AI's`) forms automatically via an optional regex suffix.
 - All variants are compiled into a single regex for fast real-time matching.

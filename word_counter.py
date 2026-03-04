@@ -35,7 +35,7 @@ FORMAT = pyaudio.paInt16
 # Minimum per-word confidence (0.0–1.0) from the grammar recognizer
 # for a token to be counted.  Raising this reduces false positives
 # (e.g. "hey" → "ay") at the cost of occasionally missing quiet speech.
-GRAMMAR_CONFIDENCE_THRESHOLD = 0.5
+GRAMMAR_CONFIDENCE_THRESHOLD = 0.6
 
 # Maximum number of transcript lines kept in memory
 MAX_TRANSCRIPT_LINES = 20
@@ -190,11 +190,16 @@ class PhoneticMatcher:
             self.variants.add(joined)
 
         # Also add each individual letter sound as a standalone variant,
-        # but only if length >= MIN_STANDALONE_VARIANT_LEN to reduce noise.
-        for options in letter_options:
-            for opt in options:
-                if len(opt) >= MIN_STANDALONE_VARIANT_LEN:
-                    self.variants.add(opt)
+        # but only for short abbreviations (<=2 letters).
+        #
+        # Rationale: for longer abbreviations like "SAS", standalone
+        # sounds such as "es" become overly broad and create many
+        # false positives in natural speech.
+        if len(letters) <= 2:
+            for options in letter_options:
+                for opt in options:
+                    if len(opt) >= MIN_STANDALONE_VARIANT_LEN:
+                        self.variants.add(opt)
 
         # Common merged forms the model produces
         # e.g. for "AI" Vosk often says just "aye"
