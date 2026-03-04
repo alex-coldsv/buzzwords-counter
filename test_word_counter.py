@@ -13,6 +13,7 @@ import json
 from word_counter import (
     WordCounterApp, PhoneticMatcher, LETTER_PHONETICS,
     GRAMMAR_CONFIDENCE_THRESHOLD,
+    STARTUP_CALIBRATION_SECONDS,
 )
 
 
@@ -887,6 +888,23 @@ class TestControls(unittest.TestCase):
                 self.app.start_listening()
                 self.assertEqual(self.app._partial_count, 0)
                 self.assertEqual(self.app._peak_partial_count, 0)
+
+    def test_start_sets_calibration_status_and_state(self):
+        """Start should enter calibration mode before active listening."""
+        self.app._model_loaded.set()
+        self.app.word_entry.delete(0, tk.END)
+        self.app.word_entry.insert(0, "hello")
+        with patch.object(self.app, '_stream_loop'):
+            with patch('threading.Thread') as mock_thread:
+                mock_thread.return_value = MagicMock()
+                with patch.object(self.app, 'update_status') as mock_status:
+                    self.app.start_listening()
+                    self.assertFalse(self.app._calibration_done)
+                    self.assertGreater(self.app._listening_started_at, 0.0)
+                    mock_status.assert_called_with("Calibrating mic...", "#FF9800")
+
+    def test_startup_calibration_seconds_constant(self):
+        self.assertEqual(STARTUP_CALIBRATION_SECONDS, 3.0)
 
     def test_on_close_joins_thread(self):
         """_on_close should attempt to join the listen thread."""

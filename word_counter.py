@@ -40,6 +40,9 @@ GRAMMAR_CONFIDENCE_THRESHOLD = 0.5
 # Maximum number of transcript lines kept in memory
 MAX_TRANSCRIPT_LINES = 20
 
+# Ignore initial mic audio to let device gain/noise suppression stabilize
+STARTUP_CALIBRATION_SECONDS = 3.0
+
 # Path to Vosk model (relative to this script)
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vosk-model-small-en-us-0.15")
 
@@ -340,6 +343,8 @@ class WordCounterApp:
         self._vosk_model = None
         self._full_transcript = []
         self._previous_partial = ""
+        self._listening_started_at = 0.0
+        self._calibration_done = False
 
         # Phonetic matcher (created when listening starts)
         self._matcher = None
@@ -368,7 +373,7 @@ class WordCounterApp:
 
         # Title
         ttk.Label(
-            main_frame, text="\U0001f3a4 BuzzWords Counter",
+            main_frame, text="\U0001f41d BuzzWords Counter",
             font=("Helvetica", 16, "bold")
         ).grid(row=0, column=0, pady=(0, 8))
 
@@ -546,6 +551,8 @@ class WordCounterApp:
         logger.info(f"Matching variants{abbr_tag}: {variants}")
 
         self.is_listening = True
+        self._listening_started_at = time.monotonic()
+        self._calibration_done = False
         self._previous_partial = ""
         self._full_transcript = []
         with self._lock:
@@ -557,7 +564,7 @@ class WordCounterApp:
         self.mic_combo.config(state=tk.DISABLED)
         self.refresh_btn.config(state=tk.DISABLED)
 
-        self.update_status("Listening...", "#4CAF50")
+        self.update_status("Calibrating mic...", "#FF9800")
 
         self._listen_thread = threading.Thread(
             target=self._stream_loop, args=(device_index,), daemon=True
@@ -659,6 +666,14 @@ class WordCounterApp:
 
                 if data is None:
                     continue
+
+                # Warm-up window: ignore unstable initial audio frames
+                if not self._calibration_done:
+                    elapsed = time.monotonic() - self._listening_started_at
+                    if elapsed < STARTUP_CALIBRATION_SECONDS:
+                        continue
+                    self._calibration_done = True
+                    self.update_status("Listening...", "#4CAF50")
 
                 # --- Feed both recognizers and process results ---
                 try:

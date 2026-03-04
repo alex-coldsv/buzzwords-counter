@@ -72,6 +72,10 @@ A macOS application that uses **Vosk** (offline, real-time speech recognition) a
 
 4. **Click "Start Listening"** to begin speech recognition
 
+   - The app first runs a short **3-second mic calibration** phase.
+   - During this time, status shows `Calibrating mic...` and early audio is intentionally ignored.
+   - After calibration, status switches to `Listening...` and counting begins.
+
 5. **Speak naturally** — the app will:
    - Display what it heard in the transcript area
    - Count occurrences of your target word in real time
@@ -106,6 +110,9 @@ Vosk emits partial results as speech is being recognized. Sometimes a partial co
 ### Audio Pipeline
 PyAudio captures 250ms frames → both recognizers process each frame → grammar results drive the counter with confidence filtering → unconstrained results drive the transcript display.
 
+### Startup Calibration
+To improve first-run accuracy, the app ignores the first **3.0 seconds** of microphone input after Start is pressed. This allows macOS audio routing, gain control, and noise suppression to stabilize before recognition/counting begins.
+
 ### Phonetic Matching
 When you click "Start Listening", the app builds a `PhoneticMatcher` for your target word:
 
@@ -137,6 +144,7 @@ unzip -q vosk-model.zip && rm vosk-model.zip
 ```
 
 ### Poor recognition accuracy
+- Wait for calibration to finish (`Calibrating mic...` → `Listening...`) before speaking target words
 - Speak clearly and at a moderate pace
 - Reduce background noise
 - Move your microphone closer
@@ -149,7 +157,7 @@ source venv/bin/activate
 python -m unittest test_word_counter
 ```
 
-All 133 tests should pass.
+All 135 tests should pass.
 
 ## Notes
 
