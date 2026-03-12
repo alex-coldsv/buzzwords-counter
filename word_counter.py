@@ -43,8 +43,6 @@ MAX_TRANSCRIPT_LINES = 20
 # Ignore initial mic audio to let device gain/noise suppression stabilize
 STARTUP_CALIBRATION_SECONDS = 3.0
 
-# Common English words added to the Vosk grammar as "padding" so the
-# decoder has realistic alternatives beyond the target variants + [unk].
 # Path to Vosk model (relative to this script)
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vosk-model-small-en-us-0.15")
 
@@ -794,28 +792,32 @@ class WordCounterApp:
     def _use_peak_partial_fallback(self):
         """Return whether partial-peak fallback should be used.
 
-        For short targets (including short abbreviations like "AI"),
+        For **regular words** (counted via the unconstrained recognizer),
         partial peaks help avoid losing true positives when Vosk revises
-        late results.
+        late results — there is no confidence filter to override.
 
-        For longer abbreviations (3+ letters like "SAS"), forced-grammar
-        partials are more likely to be false positives, so we commit only
-        from final results.
+        For **all abbreviations** (counted via the grammar-constrained
+        recognizer with per-word confidence filtering), peak partial is
+        disabled.  Grammar partials carry no confidence scores, so the
+        peak would bypass the confidence filter and commit false positives
+        that the final result correctly rejected.
         """
-        if not self._matcher or not self._matcher.is_abbreviation:
-            return True
-        letter_count = sum(1 for c in self._matcher.target if c.isalpha())
-        return letter_count <= 2
+        if self._matcher and self._matcher.is_abbreviation:
+            return False
+        return True
 
     def _commit_utterance(self, final_matches):
         """Commit the count for a completed utterance.
 
-        For short targets, uses ``max(final_matches, _peak_partial_count)``
-        so that if the partial caught a match that the final lost, the
-        match is still committed.
+        For regular words (unconstrained recognizer), uses
+        ``max(final_matches, _peak_partial_count)`` so that if the
+        partial caught a match that the final lost, the match is still
+        committed.
 
-        For longer abbreviations (3+ letters), commits from ``final_matches``
-        only to reduce false positives from speculative partials.
+        For abbreviations (grammar recognizer with confidence filtering),
+        commits from ``final_matches`` only — peak partial is not used
+        because grammar partials lack confidence scores and would bypass
+        the confidence filter.
 
         Resets both ``_partial_count`` and ``_peak_partial_count``.
         """

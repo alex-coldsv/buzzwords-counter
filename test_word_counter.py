@@ -564,12 +564,16 @@ class TestHandleResults(unittest.TestCase):
 
     def test_partial_caught_but_final_dropped(self):
         """If partial caught a match but Vosk's final drops it, keep the
-        partial's count so we don't lose correctly-heard words."""
-        self.app._handle_partial_result("talking about ay")
+        partial's count so we don't lose correctly-heard words.
+        Uses a regular word (not abbreviation) — peak partial fallback
+        is only active for non-abbreviation targets."""
+        self.app.target_word = "hello"
+        self.app._matcher = PhoneticMatcher("hello")
+        self.app._handle_partial_result("talking about hello")
         self.assertEqual(self.app._partial_count, 1)
-        # Vosk post-processing revises the text and drops 'ay'
+        # Vosk post-processing revises the text and drops 'hello'
         self.app._handle_final_result("talking about")
-        # Should still commit 1 (from partial) not 0
+        # Should still commit 1 (from peak partial) not 0
         self.assertEqual(self.app.count, 1)
         self.assertEqual(self.app._partial_count, 0)
 
@@ -649,12 +653,13 @@ class TestGrammarHandlers(unittest.TestCase):
         self.assertEqual(self.app.count, 1)
 
     def test_grammar_final_only_unk(self):
-        """All [unk] means no match — should commit peak partial count."""
+        """All [unk] with abbreviation: peak partial is NOT committed
+        because grammar partials lack confidence scores."""
         self.app._partial_count = 1
         self.app._peak_partial_count = 1
         res = self._make_result([("[unk]", 1.0), ("[unk]", 1.0)])
         self.app._handle_grammar_final(res)
-        self.assertEqual(self.app.count, 1)
+        self.assertEqual(self.app.count, 0)  # abbreviation — no peak fallback
         self.assertEqual(self.app._partial_count, 0)
         self.assertEqual(self.app._peak_partial_count, 0)
 
@@ -678,10 +683,10 @@ class TestGrammarHandlers(unittest.TestCase):
         self.app._handle_grammar_partial("[unk] [unk]")
         self.assertEqual(self.app._partial_count, 0)
 
-    def test_grammar_partial_revises_to_unk_preserves_peak(self):
-        """If grammar partial initially hears a variant then revises to
-        all [unk], _partial_count resets to 0 but _peak_partial_count
-        preserves the high-water mark so the final can commit it."""
+    def test_grammar_partial_revises_to_unk_no_peak_commit_for_abbreviation(self):
+        """For abbreviations, if grammar partial initially hears a variant
+        then revises to all [unk], _peak_partial_count is tracked but NOT
+        committed — confidence-filtered finals are the only counting path."""
         self.app._handle_grammar_partial("ay [unk]")
         self.assertEqual(self.app._partial_count, 1)
         self.assertEqual(self.app._peak_partial_count, 1)
@@ -689,10 +694,10 @@ class TestGrammarHandlers(unittest.TestCase):
         self.app._handle_grammar_partial("[unk] [unk]")
         self.assertEqual(self.app._partial_count, 0)
         self.assertEqual(self.app._peak_partial_count, 1)  # peak preserved!
-        # Final confirms nothing — but peak is committed
+        # Final confirms nothing — peak is NOT committed for abbreviations
         res = self._make_result([("[unk]", 1.0), ("[unk]", 1.0)])
         self.app._handle_grammar_final(res)
-        self.assertEqual(self.app.count, 1)  # committed from peak
+        self.assertEqual(self.app.count, 0)  # no peak fallback
         self.assertEqual(self.app._peak_partial_count, 0)
 
     def test_grammar_partial_then_final_no_double(self):
@@ -729,8 +734,8 @@ class TestGrammarHandlers(unittest.TestCase):
         self.assertEqual(self.app._peak_partial_count, 1)
 
     def test_long_abbreviation_partial_peak_not_committed(self):
-        """For 3+ letter abbreviations (e.g. SAS), speculative partial
-        peaks should not be committed if final has no confirmed match."""
+        """For all abbreviations, speculative partial peaks should not
+        be committed if final has no confirmed match."""
         self.app.target_word = "sas"
         self.app._matcher = PhoneticMatcher("SAS")
         self.app._handle_grammar_partial("es ay es")
